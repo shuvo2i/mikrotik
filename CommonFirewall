@@ -1,0 +1,613 @@
+#########################################################################################################
+#  Rick Frey's Basic MikroTik Firewall Rev 4.0 (Free Version)                                           #
+#########################################################################################################
+# Author: Rick Frey                                                                                     #
+# email: support@rickfreyconsulting.com                                                                 #
+# Username in MikroTik Forum is rickfrey                                                                #
+#########################################################################################################
+#                                         License                                                       #
+# This script has been created for use by the general public and may be used freely. This script may    #
+# not be sold!                                                                                          #
+#########################################################################################################
+#########################################################################################################
+# Features                                                                                              #
+# -Detect and block brute force attacks to the routers via SSH, Telnet, and Winbox (Disables WWW & FTP) #
+# -Basic Antivirus filtering                                                                            #
+# -P2P Blocking                                                                                         #
+# -High Connection Rate detection                                                                       #
+# -Basic Spam detection                                                                                 #
+# -Basic Port Scanner Detection                                                                         #
+# -Bogon Address Blocking                                                                               #
+#########################################################################################################
+
+###########################################################################################################################
+
+###########################################################################################################################
+#### Firewall Settings                                                                                                 ####
+###########################################################################################################################
+/ip firewall connection tracking
+
+
+###########################################################################################################################
+#### Drop Invalid Connections                                                                                          ####
+###########################################################################################################################
+/ip firewall filter
+add action=drop chain=input comment="Drop Invalid Connections" connection-state=invalid disabled=no
+add action=drop chain=forward comment="Drop Invalid Connections" connection-state=invalid disabled=no
+
+###########################################################################################################################
+#### Must Add Admin IP Addresses in the Address List for Administering the Network#########################################
+#### BE SURE TO INCLUDE ALL LAN SUBNETS!!!!################################################################################
+###########################################################################################################################
+
+add action=accept chain=input comment="Accept Exempt IP Addresses" disabled=no src-address-list="Exempt Addresses"
+add action=accept chain=forward comment="Accept Exempt IP Addresses" disabled=no src-address-list="Exempt Addresses"
+
+############################################################################################################################
+#### Multiple "Black Lists" have been created to help identify why any given person has been blocked.#######################
+#### By default Port Scanners Black List is disabled. The Firewall will continue to add these people to the ################
+#### the Black List, but will not block them unless the Black List is enabled. Use with caution!!!! ########################
+#### Once someone is on a Black List they are permanently recorded there. To remove them, go to the address list.###########
+############################################################################################################################
+
+add action=drop chain=input comment="Drop anyone in the Black List (Manually Added)" disabled=no src-address-list="Black List"
+add action=drop chain=forward comment="Drop anyone in the Black List (Manually Added)" disabled=no src-address-list="Black List"
+add action=drop chain=input comment="Drop anyone in the Black List (SSH)" disabled=no src-address-list="Black List (SSH)"
+add action=drop chain=forward comment="Drop anyone in the Black List (SSH)" disabled=no src-address-list="Black List (SSH)"
+add action=drop chain=input comment="Drop anyone in the Black List (Telnet)" disabled=no src-address-list="Black List (Telnet)"
+add action=drop chain=forward comment="Drop anyone in the Black List (Telnet)" disabled=no src-address-list="Black List (Telnet)"
+add action=drop chain=input comment="Drop anyone in the Black List (Winbox)" disabled=no src-address-list="Black List (Winbox)"
+add action=drop chain=forward comment="Drop anyone in the Black List (Winbox)" disabled=no src-address-list="Black List (Winbox)"
+add action=drop chain=input comment="Drop anyone in the Port Scanner List" disabled=yes src-address-list="WAN Port Scanners"
+add action=drop chain=forward comment="Drop anyone in the Port Scanner List" disabled=yes src-address-list="WAN Port Scanners"
+add action=drop chain=input comment="Drop anyone in the Port Scanner List" disabled=yes src-address-list="LAN Port Scanners"
+add action=drop chain=forward comment="Drop anyone in the Port Scanner List" disabled=yes src-address-list="LAN Port Scanners"
+add action=drop chain=forward comment="Drop anyone in the Black List (High Connections)" disabled=yes src-address-list="(High Connection Rates)"
+add action=drop chain=input comment="Drop all Bogons" disabled=yes src-address-list=Bogons
+add action=drop chain=forward comment="Drop all Bogons" disabled=yes src-address-list=Bogons
+add action=drop chain=forward comment="Drop all P2P" disabled=yes p2p=all-p2p
+add chain=output comment="Section Break" disabled=yes
+
+###########################################################################################################################
+#### Detect & Block Brute Force Login Attempts                                                                         ####
+###########################################################################################################################
+add action=jump chain=input comment="Jump to RWF SSH Chain" disabled=no jump-target="RWF SSH Chain"
+add action=add-src-to-address-list address-list="Black List (SSH)" address-list-timeout=0s chain="RWF SSH Chain" comment="Transfer repeated attempts from SSH Stage 3 to Black-List" connection-state=new disabled=no dst-port=22 protocol=tcp src-address-list="SSH Stage 3"
+add action=add-src-to-address-list address-list="SSH Stage 3" address-list-timeout=1m chain="RWF SSH Chain" comment="Add succesive attempts to SSH Stage 3" connection-state=new disabled=no dst-port=22 protocol=tcp src-address-list="SSH Stage 2"
+add action=add-src-to-address-list address-list="SSH Stage 2" address-list-timeout=1m chain="RWF SSH Chain" comment="Add succesive attempts to SSH Stage 2" connection-state=new disabled=no dst-port=22 protocol=tcp src-address-list="SSH Stage 1"
+add action=add-src-to-address-list address-list="SSH Stage 1" address-list-timeout=1m chain="RWF SSH Chain" comment="Add intial attempt to SSH Stage 1 List" connection-state=new disabled=no dst-port=22 protocol=tcp
+add action=log chain="RWF SSH Chain" comment="Log Black Listed IPs" disabled=no log-prefix="SSH Black List - " src-address-list="Black List (SSH)"
+add action=return chain="RWF SSH Chain" comment="Return From RWF SSH Chain" disabled=no
+add chain=output comment="Section Break" disabled=yes
+
+add action=jump chain=input comment="Jump to RWF Telnet Chain" disabled=no jump-target="RWF Telnet Chain"
+add action=add-src-to-address-list address-list="Black List (Telnet)" address-list-timeout=0s chain="RWF Telnet Chain" comment="Transfer repeated attempts from Telnet Stage 3 to Black-List" connection-state=new disabled=no dst-port=23 protocol=tcp src-address-list="Telnet Stage 3"
+add action=add-src-to-address-list address-list="Telnet Stage 3" address-list-timeout=1m chain="RWF Telnet Chain" comment="Add succesive attempts to Telnet Stage 3" connection-state=new disabled=no dst-port=23 protocol=tcp src-address-list="Telnet Stage 2"
+add action=add-src-to-address-list address-list="Telnet Stage 2" address-list-timeout=1m chain="RWF Telnet Chain" comment="Add succesive attempts to Telnet Stage 2" connection-state=new disabled=no dst-port=23 protocol=tcp src-address-list="Telnet Stage 1"
+add action=add-src-to-address-list address-list="Telnet Stage 1" address-list-timeout=1m chain="RWF Telnet Chain" comment="Add Intial attempt to Telnet Stage 1" connection-state=new disabled=no dst-port=23 protocol=tcp
+add action=log chain="RWF Telnet Chain" comment="Log Black Listed IPs" disabled=no log-prefix="Telnet Black List - " src-address-list="Black List (Telnet)"
+add action=return chain="RWF Telnet Chain" comment="Return From RWF Telnet Chain" disabled=no
+add chain=output comment="Section Break" disabled=yes
+
+add action=jump chain=input comment="Jump to RWF Winbox Chain" disabled=no jump-target="RWF Winbox Chain"
+add action=add-src-to-address-list address-list="Black List (Winbox)" address-list-timeout=0s chain="RWF Winbox Chain" comment="Transfer repeated attempts from Winbox Stage 3 to Black-List" connection-state=new disabled=no dst-port=8291 protocol=tcp src-address-list="Winbox Stage 3"
+add action=add-src-to-address-list address-list="Winbox Stage 3" address-list-timeout=1m chain="RWF Winbox Chain" comment="Add succesive attempts to Winbox Stage 3" connection-state=new disabled=no dst-port=8291 protocol=tcp src-address-list="Winbox Stage 2"
+add action=add-src-to-address-list address-list="Winbox Stage 2" address-list-timeout=1m chain="RWF Winbox Chain" comment="Add succesive attempts to Winbox Stage 2" connection-state=new disabled=no dst-port=8291 protocol=tcp src-address-list="Winbox Stage 1"
+add action=add-src-to-address-list address-list="Winbox Stage 1" address-list-timeout=1m chain="RWF Winbox Chain" comment="Add Intial attempt to Winbox Stage 1" connection-state=new disabled=no dst-port=8291 protocol=tcp
+add action=log chain="RWF Winbox Chain" comment="Log Black Listed IPs" disabled=no log-prefix="Winbox Black List - " src-address-list="Black List (Winbox)"
+add action=return chain="RWF Winbox Chain" comment="Return From RWF Winbox Chain" disabled=no
+add chain=output comment="Section Break" disabled=yes
+
+###########################################################################################################################
+#### Detect & Manage Port Scanners                                                                                     ####
+###########################################################################################################################
+add action=jump chain=input comment="Jump to RWF WAN Port Scanners" disabled=no jump-target="RWF WAN Port Scanners"
+add action=add-src-to-address-list address-list="Wan Port Scanners" address-list-timeout=0s chain="RWF WAN Port Scanners" comment="Add TCP Port Scanners to Address List" disabled=no protocol=tcp psd=40,3s,2,1
+add action=log chain="RWF WAN Port Scanners" comment="Log Black Listed IPs" disabled=no log-prefix="WAN Port Scanners - " src-address-list="Wan Port Scanners"
+add action=return chain="RWF WAN Port Scanners" comment="Return From RWF WAN Port Scanners" disabled=no
+add chain=output comment="Section Break" disabled=yes
+
+add action=jump chain=forward comment="Jump to RWF LAN Port Scanners" disabled=no jump-target="RWF LAN Port Scanners"
+add action=add-src-to-address-list address-list="RWF LAN Port Scanners" address-list-timeout=0s chain="RWF LAN Port Scanners" comment="Add TCP Port Scanners to Address List" disabled=no protocol=tcp psd=40,3s,2,1
+add action=log chain="RWF LAN Port Scanners" comment="Log Black Listed IPs" disabled=no log-prefix="LAN Port Scanners - " src-address-list="LAN Port Scanners"
+add action=return chain="RWF LAN Port Scanners" comment="Return From RWF LAN Port Scanners" disabled=no
+add chain=output comment="Section Break" disabled=yes
+
+###########################################################################################################################
+#### Detect & Manage High Connection Rates                                                                             ####
+###########################################################################################################################
+add action=jump chain=forward comment="Jump to High Connection Limiting Chain" jump-target="RWF Conn Limit Chain (LAN)"
+add action=add-src-to-address-list address-list="(LAN High Connection Rates)" chain="RWF Conn Limit Chain (LAN)" comment="Add LAN High Connections to Address List" connection-limit=100,32 protocol=tcp
+add action=log chain="RWF Conn Limit Chain (LAN)" comment="Log Black Listed IPs" log-prefix="LAN High Conn Limit - " src-address-list="(LAN High Connection Rates)"
+add action=return chain="RWF Conn Limit Chain (LAN)" comment="Return From High Connection Limit Chain"
+add action=jump chain=input comment="Jump to High Connection Limiting Chain" jump-target="RWF Conn Limit Chain (WAN)"
+add action=add-src-to-address-list address-list="(WAN High Connection Rates)" chain="RWF Conn Limit Chain (WAN)" comment="Add WAN High Connections to Address List" connection-limit=100,32 protocol=tcp
+add action=log chain="RWF Conn Limit Chain (WAN)" comment="Log Black Listed IPs" disabled=yes log-prefix="WAN High Conn Limit - " src-address-list="(WAN High Connection Rates)"
+add action=return chain="RWF Conn Limit Chain (WAN)" comment="Return From High Connection Limit Chain"
+
+
+############################################################################################################################
+#### The Virus Chain has been added at the request of customers, but there is no guarantee expressed or implied with the ###
+#### Virus Chain. ##########################################################################################################
+############################################################################################################################
+
+add action=jump chain=input comment="Jump to Virus Chain" disabled=no jump-target=Virus
+add action=drop chain=Virus comment="Drop Blaster Worm" disabled=no dst-port=135-139 protocol=tcp
+add action=drop chain=Virus comment="Drop Blaster Worm" disabled=no dst-port=445 protocol=tcp
+add action=drop chain=Virus comment="Drop Blaster Worm" disabled=no dst-port=445 protocol=udp
+add action=drop chain=Virus comment="Drop Messenger Worm" disabled=no dst-port=135-139 protocol=udp
+add action=drop chain=Virus comment=Conficker disabled=no dst-port=593 protocol=tcp
+add action=drop chain=Virus comment=Worm disabled=no dst-port=1024-1030 protocol=tcp
+add action=drop chain=Virus comment="ndm requester" disabled=no dst-port=1363 protocol=tcp
+add action=drop chain=Virus comment="ndm server" disabled=no dst-port=1364 protocol=tcp
+add action=drop chain=Virus comment="screen cast" disabled=no dst-port=1368 protocol=tcp
+add action=drop chain=Virus comment=hromgrafx disabled=no dst-port=1373 protocol=tcp
+add action=drop chain=Virus comment="Drop MyDoom" disabled=no dst-port=1080 protocol=tcp
+add action=drop chain=Virus comment=cichlid disabled=no dst-port=1377 protocol=tcp
+add action=drop chain=Virus comment=Worm disabled=no dst-port=1433-1434 protocol=tcp
+add action=drop chain=Virus comment="Drop Dumaru.Y" disabled=no dst-port=2283 protocol=tcp
+add action=drop chain=Virus comment="Drop Beagle" disabled=no dst-port=2535 protocol=tcp
+add action=drop chain=Virus comment="Drop Beagle.C-K" disabled=no dst-port=2745 protocol=tcp
+add action=drop chain=Virus comment="Drop MyDoom" disabled=no dst-port=3127-3128 protocol=tcp
+add action=drop chain=Virus comment="Drop Backdoor OptixPro" disabled=no dst-port=3410 protocol=tcp
+add action=drop chain=Virus comment="Drop Sasser" disabled=no dst-port=5554 protocol=tcp
+add action=drop chain=Virus comment=Worm disabled=no dst-port=4444 protocol=tcp
+add action=drop chain=Virus comment=Worm disabled=no dst-port=4444 protocol=udp
+add action=drop chain=Virus comment="Drop Beagle.B" disabled=no dst-port=8866 protocol=tcp
+add action=drop chain=Virus comment="Drop Dabber.A-B" disabled=no dst-port=9898 protocol=tcp
+add action=drop chain=Virus comment="Drop Dumaru.Y" disabled=no dst-port=10000 protocol=tcp
+add action=drop chain=Virus comment="Drop MyDoom.B" disabled=no dst-port=10080 protocol=tcp
+add action=drop chain=Virus comment="Drop NetBus" disabled=no dst-port=12345 protocol=tcp
+add action=drop chain=Virus comment="Drop Kuang2" disabled=no dst-port=17300 protocol=tcp
+add action=drop chain=Virus comment="Drop SubSeven" disabled=no dst-port=27374 protocol=tcp
+add action=drop chain=Virus comment="Drop PhatBot, Agobot, Gaobot" disabled=no dst-port=65506 protocol=tcp
+add action=return chain=Virus comment="Return From Virus Chain" disabled=no
+add chain=output comment="Section Break" disabled=yes
+
+
+
+
+
+###########################################################################################################################
+#### This is the short list that is published on the web at http://www.team-cymru.org/Services/Bogons/bogon-bn-nonagg.txt##
+#### This list must be maintained or it will cause problems. Check for updates at least monthly.###########################
+####!!!!! All subnets in this list will be blocked!!! Disable or remove any subnets that you are using!!!##################
+###########################################################################################################################
+
+/ip firewall address-list
+add list= Bogons address=0.0.0.0/8	disabled=yes
+add list= Bogons address=10.0.0.0/8	disabled=yes
+add list= Bogons address=100.64.0.0/10	disabled=yes
+add list= Bogons address=127.0.0.0/8	disabled=yes
+add list= Bogons address=169.254.0.0/16	disabled=yes
+add list= Bogons address=172.16.0.0/12	disabled=yes
+add list= Bogons address=192.0.0.0/24	disabled=yes
+add list= Bogons address=192.0.2.0/24	disabled=yes
+add list= Bogons address=192.168.0.0/16	disabled=yes
+add list= Bogons address=198.18.0.0/15	disabled=yes
+add list= Bogons address=198.51.100.0/24 disabled=yes
+add list= Bogons address=203.0.113.0/24	disabled=yes
+add list= Bogons address=224.0.0.0/4	disabled=yes
+add list= Bogons address=240.0.0.0/4	disabled=yes
+
+###########################################################################################################################
+#### This is a list of all common ports as found on http://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers        ##
+#### By default they are enabled to prevent immediate problems when applying the script. Carefully review the list of    ##
+#### ports and remove or disable entries that are not needed.                                                            ##
+###########################################################################################################################
+
+/ip firewall filter
+add action=jump chain=forward comment="Jump to \"Manage Common Ports\" Chain" jump-target="Manage Common Ports"
+add chain="Manage Common Ports" comment="TCP Port Service Multiplexer(TCPMUX)" port=1 protocol=tcp
+add chain="Manage Common Ports" comment="TCP Port Service Multiplexer(TCPMUX)  " port=1 protocol=udp
+add chain="Manage Common Ports" comment="CompressNETManagement Utility" port=2 protocol=tcp
+add chain="Manage Common Ports" comment="CompressNETManagement Utility  " port=2 protocol=udp
+add chain="Manage Common Ports" comment="CompressNETCompression Process" port=3 protocol=tcp
+add chain="Manage Common Ports" comment="CompressNETCompression Process  " port=3 protocol=udp
+add chain="Manage Common Ports" comment="Remote Job Entry" port=5 protocol=tcp
+add chain="Manage Common Ports" comment="Remote Job Entry  " port=5 protocol=udp
+add chain="Manage Common Ports" comment="Echo Protocol" port=7 protocol=tcp
+add chain="Manage Common Ports" comment="Echo Protocol  " port=7 protocol=udp
+add chain="Manage Common Ports" comment=Cyberdeck port=8 protocol=tcp
+add chain="Manage Common Ports" comment="Cyberdeck  " port=8 protocol=udp
+add chain="Manage Common Ports" comment="Discard Protocol" port=9 protocol=tcp
+add chain="Manage Common Ports" comment="Discard Protocol  & Wake-on-LAN  " port=9 protocol=udp
+add chain="Manage Common Ports" comment="Active Users (systatservice)" port=11 protocol=tcp
+add chain="Manage Common Ports" comment="Active Users (systatservice)  " port=11 protocol=udp
+add chain="Manage Common Ports" comment="Daytime Protocol(RFC 867)" port=13 protocol=tcp
+add chain="Manage Common Ports" comment="Daytime Protocol(RFC 867)  " port=13 protocol=udp
+add chain="Manage Common Ports" comment=Previouslynetstatservice port=15 protocol=tcp
+add chain="Manage Common Ports" comment="Previouslynetstatservice  " port=15 protocol=udp
+add chain="Manage Common Ports" comment="Quote of the Day" port=17 protocol=tcp
+add chain="Manage Common Ports" comment="Quote of the Day  " port=17 protocol=udp
+add chain="Manage Common Ports" comment="Message Send Protocol" port=18 protocol=tcp
+add chain="Manage Common Ports" comment="Message Send Protocol  " port=18 protocol=udp
+add chain="Manage Common Ports" comment="Character Generator Protocol(CHARGEN)" port=19 protocol=tcp
+add chain="Manage Common Ports" comment="Character Generator Protocol(CHARGEN)  " port=19 protocol=udp
+add chain="Manage Common Ports" comment="FTPdata transfer" port=20 protocol=tcp
+add chain="Manage Common Ports" comment="FTPdata transfer  " port=20 protocol=udp
+add chain="Manage Common Ports" comment="FTPcontrol (command)" port=21 protocol=tcp
+add chain="Manage Common Ports" comment="Secure Shell(SSH)" port=22 protocol=tcp
+add chain="Manage Common Ports" comment="Secure Shell(SSH)   " port=22 protocol=udp
+add chain="Manage Common Ports" comment="Telnetprotocolunencrypted text communications" port=23 protocol=tcp
+add chain="Manage Common Ports" comment="Telnetprotocolunencrypted text communications  " port=23 protocol=udp
+add chain="Manage Common Ports" comment="Priv-mail: any privatemailsystem." port=24 protocol=tcp
+add chain="Manage Common Ports" comment="Priv-mail: any privatemailsystem.  " port=24 protocol=udp
+add chain="Manage Common Ports" comment="Simple Mail Transfer Protocol(SMTP)" port=25 protocol=tcp
+add chain="Manage Common Ports" comment="Simple Mail Transfer Protocol(SMTP)  " port=25 protocol=udp
+add chain="Manage Common Ports" comment="NSW User System FE" port=27 protocol=tcp
+add chain="Manage Common Ports" comment="NSW User System FE  " port=27 protocol=udp
+add chain="Manage Common Ports" comment="MSG ICP" port=29 protocol=tcp
+add chain="Manage Common Ports" comment="MSG ICP  " port=29 protocol=udp
+add chain="Manage Common Ports" comment="Display Support Protocol" port=33 protocol=tcp
+add chain="Manage Common Ports" comment="Display Support Protocol  " port=33 protocol=udp
+add chain="Manage Common Ports" comment="Any privateprinter serverprotocol" port=35 protocol=tcp
+add chain="Manage Common Ports" comment="Any privateprinter serverprotocol  " port=35 protocol=udp
+add chain="Manage Common Ports" comment="TIME protocol" port=37 protocol=tcp
+add chain="Manage Common Ports" comment="TIME protocol  " port=37 protocol=udp
+add chain="Manage Common Ports" comment="Resource Location Protocol(RLP)" port=39 protocol=tcp
+add chain="Manage Common Ports" comment="Resource Location Protocol(RLP)  " port=39 protocol=udp
+add chain="Manage Common Ports" comment="ARPA Host Name Server Protocol & WINS" port=42 protocol=tcp
+add chain="Manage Common Ports" comment="ARPA Host Name Server Protocol  & WINS  " port=42 protocol=udp
+add chain="Manage Common Ports" comment=WHOISprotocol port=43 protocol=tcp
+add chain="Manage Common Ports" comment="WHOISprotocol  " port=43 protocol=udp
+add chain="Manage Common Ports" comment="NI FTP" port=47 protocol=tcp
+add chain="Manage Common Ports" comment="NI FTP  " port=47 protocol=udp
+add chain="Manage Common Ports" comment="TACACSLogin Host protocol" port=49 protocol=tcp
+add chain="Manage Common Ports" comment="TACACSLogin Host protocol  " port=49 protocol=udp
+add chain="Manage Common Ports" comment="Remote Mail Checking Protocol" port=50 protocol=tcp
+add chain="Manage Common Ports" comment="Remote Mail Checking Protocol  " port=50 protocol=udp
+add chain="Manage Common Ports" comment="IMP Logical Address Maintenance" port=51 protocol=tcp
+add chain="Manage Common Ports" comment="IMP Logical Address Maintenance  " port=51 protocol=udp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Time Protocol" port=52 protocol=tcp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Time Protocol  " port=52 protocol=udp
+add chain="Manage Common Ports" comment="Domain Name System(DNS)" port=53 protocol=tcp
+add chain="Manage Common Ports" comment="Domain Name System(DNS)  " port=53 protocol=udp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Clearinghouse" port=54 protocol=tcp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Clearinghouse  " port=54 protocol=udp
+add chain="Manage Common Ports" comment="ISI Graphics Language(ISI-GL)" port=55 protocol=tcp
+add chain="Manage Common Ports" comment="ISI Graphics Language(ISI-GL)  " port=55 protocol=udp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Authentication & RAP" port=56 protocol=tcp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Authentication & RAP" port=56 protocol=udp
+add chain="Manage Common Ports" comment="Mail Transfer Protocol(RFC 780)" port=57 protocol=tcp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Mail" port=58 protocol=tcp
+add chain="Manage Common Ports" comment="XNS (Xerox Network Systems) Mail  " port=58 protocol=udp
+add chain="Manage Common Ports" comment="CI (Travelport) (formerly Covia) Comms Integrator" port=64 protocol=tcp
+add chain="Manage Common Ports" comment="CI (Travelport) (formerly Covia) Comms Integrator  " port=64 protocol=udp
+add chain="Manage Common Ports" comment="(BOOTP) Server & (DHCP)  " port=67 protocol=udp
+add chain="Manage Common Ports" comment="(BOOTP) Client & (DHCP)  " port=68 protocol=udp
+add chain="Manage Common Ports" comment="Trivial File Transfer Protocol(TFTP)  " port=69 protocol=udp
+add chain="Manage Common Ports" comment="Gopher protocol" port=70 protocol=tcp
+add chain="Manage Common Ports" comment=NETRJSprotocol port=71 protocol=tcp
+add chain="Manage Common Ports" comment=NETRJSprotocol port=72 protocol=tcp
+add chain="Manage Common Ports" comment=NETRJSprotocol port=73 protocol=tcp
+add chain="Manage Common Ports" comment=NETRJSprotocol port=74 protocol=tcp
+add chain="Manage Common Ports" comment="Finger protocol" port=79 protocol=tcp
+add chain="Manage Common Ports" comment="Hypertext Transfer Protocol(HTTP)" port=80 protocol=tcp
+add chain="Manage Common Ports" comment="TorparkOnion routing" port=81 protocol=tcp
+add chain="Manage Common Ports" comment="TorparkControl  " port=82 protocol=udp
+add chain="Manage Common Ports" comment="Kerberos authentication system" port=88 protocol=tcp
+add chain="Manage Common Ports" comment="Kerberos authentication system  " port=88 protocol=udp
+add chain="Manage Common Ports" comment="dnsix (DoDNetwork Security for Information Exchange) Securit Attribute Token Map & PointCast (dotcom)" port=90 protocol=tcp
+add chain="Manage Common Ports" comment="dnsix (DoDNetwork Security for Information Exchange) Securit Attribute Token Map  & PointCast (dotcom)  " port=90 protocol=udp
+add chain="Manage Common Ports" comment="WIP Messageprotocol" port=99 protocol=tcp
+add chain="Manage Common Ports" comment="WIP Messageprotocol  " port=99 protocol=udp
+add chain="Manage Common Ports" comment="CyberGate RAT protocol  " port=100 protocol=udp
+add chain="Manage Common Ports" comment="NIChost name" port=101 protocol=tcp
+add chain="Manage Common Ports" comment="ISO-TSAP(Transport Service Access Point)" port=102 protocol=tcp
+add chain="Manage Common Ports" comment="ACR/NEMADigital Imaging and Communications in Medicine(DICOM)" port=104 protocol=tcp
+add chain="Manage Common Ports" comment="ACR/NEMADigital Imaging and Communications in Medicine(DICOM)  " port=104 protocol=udp
+add chain="Manage Common Ports" comment="CCSO Nameserver Protocol (Qi/Ph)" port=105 protocol=tcp
+add chain="Manage Common Ports" comment="CCSO Nameserver Protocol (Qi/Ph)  " port=105 protocol=udp
+add chain="Manage Common Ports" comment=RemoteTELNETServiceprotocol port=107 protocol=tcp
+add chain="Manage Common Ports" comment="SNAGateway Access Server" port=108 protocol=tcp
+add chain="Manage Common Ports" comment="SNAGateway Access Server  " port=108 protocol=udp
+add chain="Manage Common Ports" comment="Post Office Protocolv2 (POP2)" port=109 protocol=tcp
+add chain="Manage Common Ports" comment="Post Office Protocolv3 (POP3)" port=110 protocol=tcp
+add chain="Manage Common Ports" comment="ONC RPC(SunRPC)" port=111 protocol=tcp
+add chain="Manage Common Ports" comment="ONC RPC(SunRPC)  " port=111 protocol=udp
+add chain="Manage Common Ports" comment="IdentAuthentication Service/Identification Protocol" port=113 protocol=tcp
+add chain="Manage Common Ports" comment="Authentication Service(auth)  " port=113 protocol=udp
+add chain="Manage Common Ports" comment="Simple File Transfer Protocol(SFTP)" port=115 protocol=tcp
+add chain="Manage Common Ports" comment="SQL(Structured Query Language) Services" port=118 protocol=tcp
+add chain="Manage Common Ports" comment="SQL(Structured Query Language) Services  " port=118 protocol=udp
+add chain="Manage Common Ports" comment="Network News Transfer Protocol(NNTP)" port=119 protocol=tcp
+add chain="Manage Common Ports" comment="Network Time Protocol(NTP)" port=123 protocol=udp
+add chain="Manage Common Ports" comment="FormerlyUnisysUnitary Login, renamed by Unisys to NXEdit." port=126 protocol=tcp
+add chain="Manage Common Ports" comment="FormerlyUnisysUnitary Login, renamed by Unisys to NXEdit.   " port=126 protocol=udp
+add chain="Manage Common Ports" comment="DCEendpointresolution & MicrosoftEPMAP (End Point Mapper)" port=135 protocol=tcp
+add chain="Manage Common Ports" comment="DCEendpointresolution  & MicrosoftEPMAP (End Point Mapper)  " port=135 protocol=udp
+add chain="Manage Common Ports" comment="NetBIOSNetBIOS Name Service" port=137 protocol=tcp
+add chain="Manage Common Ports" comment="NetBIOSNetBIOS Name Service  " port=137 protocol=udp
+add chain="Manage Common Ports" comment="NetBIOSNetBIOS Datagram Service" port=138 protocol=tcp
+add chain="Manage Common Ports" comment="NetBIOSNetBIOS Datagram Service  " port=138 protocol=udp
+add chain="Manage Common Ports" comment="NetBIOSNetBIOS Session Service" port=139 protocol=tcp
+add chain="Manage Common Ports" comment="NetBIOSNetBIOS Session Service  " port=139 protocol=udp
+add chain="Manage Common Ports" comment="Internet Message Access Protocol(IMAP)" port=143 protocol=tcp
+add chain="Manage Common Ports" comment="Background File Transfer Program (BFTP)" port=152 protocol=tcp
+add chain="Manage Common Ports" comment="Background File Transfer Program (BFTP)  " port=152 protocol=udp
+add chain="Manage Common Ports" comment="SGMP,Simple Gateway Monitoring Protocol" port=153 protocol=tcp
+add chain="Manage Common Ports" comment="SGMP,Simple Gateway Monitoring Protocol  " port=153 protocol=udp
+add chain="Manage Common Ports" comment=SQLService port=156 protocol=tcp
+add chain="Manage Common Ports" comment="SQLService  " port=156 protocol=udp
+add chain="Manage Common Ports" comment="DMSP, Distributed Mail Service Protocol" port=158 protocol=tcp
+add chain="Manage Common Ports" comment="DMSP, Distributed Mail Service Protocol  " port=158 protocol=udp
+add chain="Manage Common Ports" comment="Simple Network Management Protocol(SNMP)  " port=161 protocol=udp
+add chain="Manage Common Ports" comment="Simple Network Management ProtocolTrap (SNMPTRAP)" port=162 protocol=tcp
+add chain="Manage Common Ports" comment="Simple Network Management ProtocolTrap (SNMPTRAP)  " port=162 protocol=udp
+add chain="Manage Common Ports" comment="Print-srv, NetworkPostScript" port=170 protocol=tcp
+add chain="Manage Common Ports" comment="VMNET (IBM z/VM, z/OS & z/VSE - Network Job Entry(NJE))" port=175 protocol=tcp
+add chain="Manage Common Ports" comment="X Display ManagerControl Protocol (XDMCP)" port=177 protocol=tcp
+add chain="Manage Common Ports" comment="X Display ManagerControl Protocol (XDMCP)  " port=177 protocol=udp
+add chain="Manage Common Ports" comment="BGP(Border Gateway Protocol)" port=179 protocol=tcp
+add chain="Manage Common Ports" comment="Internet Relay Chat(IRC)" port=194 protocol=tcp
+add chain="Manage Common Ports" comment="Internet Relay Chat(IRC)  " port=194 protocol=udp
+add chain="Manage Common Ports" comment="SMUX,SNMPUnix Multiplexer" port=199 protocol=tcp
+add chain="Manage Common Ports" comment="SMUX,SNMPUnix Multiplexer  " port=199 protocol=udp
+add chain="Manage Common Ports" comment="AppleTalkRouting Maintenance" port=201 protocol=tcp
+add chain="Manage Common Ports" comment="AppleTalkRouting Maintenance  " port=201 protocol=udp
+add chain="Manage Common Ports" comment="TheQuick Mail Transfer Protocol" port=209 protocol=tcp
+add chain="Manage Common Ports" comment="TheQuick Mail Transfer Protocol  " port=209 protocol=udp
+add chain="Manage Common Ports" comment=ANSIZ39.50 port=210 protocol=tcp
+add chain="Manage Common Ports" comment="ANSIZ39.50  " port=210 protocol=udp
+add chain="Manage Common Ports" comment="Internetwork Packet Exchange(IPX)" port=213 protocol=tcp
+add chain="Manage Common Ports" comment="Internetwork Packet Exchange(IPX)  " port=213 protocol=udp
+add chain="Manage Common Ports" comment="Message posting protocol(MPP)" port=218 protocol=tcp
+add chain="Manage Common Ports" comment="Message posting protocol(MPP)  " port=218 protocol=udp
+add chain="Manage Common Ports" comment="Internet Message Access Protocol(IMAP), version 3" port=220 protocol=tcp
+add chain="Manage Common Ports" comment="Internet Message Access Protocol(IMAP), version 3  " port=220 protocol=udp
+add chain="Manage Common Ports" comment="ESRO, Efficient Short Remote Operations" port=259 protocol=tcp
+add chain="Manage Common Ports" comment="ESRO, Efficient Short Remote Operations  " port=259 protocol=udp
+add chain="Manage Common Ports" comment="BGMP, Border Gateway Multicast Protocol" port=264 protocol=tcp
+add chain="Manage Common Ports" comment="BGMP, Border Gateway Multicast Protocol  " port=264 protocol=udp
+add chain="Manage Common Ports" comment=http-mgmt port=280 protocol=tcp
+add chain="Manage Common Ports" comment="http-mgmt  " port=280 protocol=udp
+add chain="Manage Common Ports" comment="ThinLincWeb Access" port=300 protocol=tcp
+add chain="Manage Common Ports" comment="Novastor Online Backup" port=308 protocol=tcp
+add chain="Manage Common Ports" comment="Mac OS X ServerAdmin (officially AppleShare IP Web administration)" port=311 protocol=tcp
+add chain="Manage Common Ports" comment="PKIX TSP,Time Stamp Protocol" port=318 protocol=tcp
+add chain="Manage Common Ports" comment="PKIX TSP,Time Stamp Protocol  " port=318 protocol=udp
+add chain="Manage Common Ports" comment="Precision time protocolevent messages  " port=319 protocol=udp
+add chain="Manage Common Ports" comment="Precision time protocolgeneral messages  " port=320 protocol=udp
+add chain="Manage Common Ports" comment="MATIP-Type A, Mapping of Airline Traffic over Internet Protocol" port=350 protocol=tcp
+add chain="Manage Common Ports" comment="MATIP-Type A, Mapping of Airline Traffic over Internet Protocol  " port=350 protocol=udp
+add chain="Manage Common Ports" comment="MATIP-Type B, Mapping of Airline Traffic over Internet Protocol" port=351 protocol=tcp
+add chain="Manage Common Ports" comment="MATIP-Type B, Mapping of Airline Traffic over Internet Protocol  " port=351 protocol=udp
+add chain="Manage Common Ports" comment="ODMR, On-Demand Mail Relay" port=366 protocol=tcp
+add chain="Manage Common Ports" comment="ODMR, On-Demand Mail Relay  " port=366 protocol=udp
+add chain="Manage Common Ports" comment=Rpc2portmap port=369 protocol=tcp
+add chain="Manage Common Ports" comment="Rpc2portmap  " port=369 protocol=udp
+add chain="Manage Common Ports" comment="codaauth2Coda authentication server" port=370 protocol=tcp
+add chain="Manage Common Ports" comment="codaauth2Coda authentication server" port=370 protocol=udp
+add chain="Manage Common Ports" comment="ClearCase albd" port=371 protocol=tcp
+add chain="Manage Common Ports" comment="ClearCase albd  " port=371 protocol=udp
+add chain="Manage Common Ports" comment="HP data alarm manager" port=383 protocol=tcp
+add chain="Manage Common Ports" comment="HP data alarm manager  " port=383 protocol=udp
+add chain="Manage Common Ports" comment="A Remote Network Server System" port=384 protocol=tcp
+add chain="Manage Common Ports" comment="A Remote Network Server System  " port=384 protocol=udp
+add chain="Manage Common Ports" comment="AURP, AppleTalk Update-based Routing Protocol" port=387 protocol=tcp
+add chain="Manage Common Ports" comment="AURP, AppleTalk Update-based Routing Protocol  " port=387 protocol=udp
+add chain="Manage Common Ports" comment="Lightweight Directory Access Protocol(LDAP)" port=389 protocol=tcp
+add chain="Manage Common Ports" comment="Lightweight Directory Access Protocol(LDAP)  " port=389 protocol=udp
+add chain="Manage Common Ports" comment="Digital Equipment CorporationDECnet(Phase V+) over TCP/IP" port=399 protocol=tcp
+add chain="Manage Common Ports" comment="Digital Equipment CorporationDECnet(Phase V+) over TCP/IP  " port=399 protocol=udp
+add chain="Manage Common Ports" comment="UPSUninterruptible Power Supply" port=401 protocol=tcp
+add chain="Manage Common Ports" comment="UPSUninterruptible Power Supply  " port=401 protocol=udp
+add chain="Manage Common Ports" comment="Timbuktu Proby Netopia" port=407 protocol=tcp
+add chain="Manage Common Ports" comment="Timbuktu Proby Netopia  " port=407 protocol=udp
+add chain="Manage Common Ports" comment="Service Location Protocol(SLP)" port=427 protocol=tcp
+add chain="Manage Common Ports" comment="Service Location Protocol(SLP)  " port=427 protocol=udp
+add chain="Manage Common Ports" comment="Hypertext Transfer ProtocoloverTLS/SSL(HTTPS)" port=443 protocol=tcp
+add chain="Manage Common Ports" comment="SNPP, Simple Network Paging Protocol (RFC 1568)" port=444 protocol=tcp
+add chain="Manage Common Ports" comment="SNPP, Simple Network Paging Protocol (RFC 1568)  " port=444 protocol=udp
+add chain="Manage Common Ports" comment="Microsoft-DSActive Directory, Windows shares" port=445 protocol=tcp
+add chain="Manage Common Ports" comment="KerberosChange/Set password" port=464 protocol=tcp
+add chain="Manage Common Ports" comment="KerberosChange/Set password  " port=464 protocol=udp
+add chain="Manage Common Ports" comment="URL Rendesvous Directory for SSM (Cisco protocol)" port=465 protocol=tcp
+add chain="Manage Common Ports" comment="tcpnethaspsrv (Aladdin Knowledge SystemsHasp services, TCP/IP version)" port=475 protocol=tcp
+add chain="Manage Common Ports" comment="tcpnethaspsrv (Aladdin Knowledge SystemsHasp services, TCP/IP version)  " port=475 protocol=udp
+add chain="Manage Common Ports" comment="GoGlobal TCP/IP version)" port=491 protocol=tcp
+add chain="Manage Common Ports" comment="GoGlobal TCP/IP version)  " port=491 protocol=udp
+add chain="Manage Common Ports" comment="Dantz Retrospect" port=497 protocol=tcp
+add chain="Manage Common Ports" comment="Internet Security Association and Key Management Protocol(ISAKMP)  " port=500 protocol=udp
+add chain="Manage Common Ports" comment="Modbus, Protocol" port=502 protocol=tcp
+add chain="Manage Common Ports" comment="Modbus, Protocol  " port=502 protocol=udp
+add chain="Manage Common Ports" comment="Citadel multiservice protocol" port=504 protocol=tcp
+add chain="Manage Common Ports" comment="Citadel multiservice protocol" port=504 protocol=udp
+add chain="Manage Common Ports" comment="Rexec, Remote Process Execution & comsat, together withbiff" port=512 protocol=tcp
+add chain="Manage Common Ports" comment="comsat, together withbiff  " port=512 protocol=udp
+add chain="Manage Common Ports" comment=rlogin port=513 protocol=tcp
+add chain="Manage Common Ports" comment="rlogin  & Who  " port=513 protocol=udp
+add chain="Manage Common Ports" comment="Shell (Remote Shell, rsh, remsh)" port=514 protocol=tcp
+add chain="Manage Common Ports" comment="Syslogused for system logging  " port=514 protocol=udp
+add chain="Manage Common Ports" comment="Line Printer Daemonprint service" port=515 protocol=tcp
+add chain="Manage Common Ports" comment="Talk  " port=517 protocol=udp
+add chain="Manage Common Ports" comment="NTalk  " port=518 protocol=udp
+add chain="Manage Common Ports" comment="efs, extended file name server" port=520 protocol=tcp
+add chain="Manage Common Ports" comment="Routing Information Protocol(RIP)  " port=520 protocol=udp
+add chain="Manage Common Ports" comment="NetWare Core Protocol(NCP)" port=524 protocol=tcp
+add chain="Manage Common Ports" comment="NetWare Core Protocol(NCP)  " port=524 protocol=udp
+add chain="Manage Common Ports" comment="Timed,Timeserver  " port=525 protocol=udp
+add chain="Manage Common Ports" comment=RPC port=530 protocol=tcp
+add chain="Manage Common Ports" comment="RPC  " port=530 protocol=udp
+add chain="Manage Common Ports" comment="AOL Instant Messenger" port=531 protocol=tcp
+add chain="Manage Common Ports" comment="AOL Instant Messenger  " port=531 protocol=udp
+add chain="Manage Common Ports" comment=netnews port=532 protocol=tcp
+add chain="Manage Common Ports" comment="netnews  " port=532 protocol=udp
+add chain="Manage Common Ports" comment="netwall, For Emergency Broadcasts  " port=533 protocol=udp
+add chain="Manage Common Ports" comment="UUCP(Unix-to-Unix Copy Protocol)" port=540 protocol=tcp
+add chain="Manage Common Ports" comment="commerce(Commerce Applications)" port=542 protocol=tcp
+add chain="Manage Common Ports" comment="commerce(Commerce Applications)  " port=542 protocol=udp
+add chain="Manage Common Ports" comment=klogin,Kerberoslogin port=543 protocol=tcp
+add chain="Manage Common Ports" comment="kshell,KerberosRemote shell" port=544 protocol=tcp
+add chain="Manage Common Ports" comment="OSIsoftPI (VMS), OSISoft PI Server Client Access" port=545 protocol=tcp
+add chain="Manage Common Ports" comment=DHCPv6client port=546 protocol=tcp
+add chain="Manage Common Ports" comment="DHCPv6client  " port=546 protocol=udp
+add chain="Manage Common Ports" comment=DHCPv6server port=547 protocol=tcp
+add chain="Manage Common Ports" comment="DHCPv6server  " port=547 protocol=udp
+add chain="Manage Common Ports" comment="Apple Filing Protocol(AFP) overTCP" port=548 protocol=tcp
+add chain="Manage Common Ports" comment="new-rwho, new-who" port=550 protocol=tcp
+add chain="Manage Common Ports" comment="new-rwho, new-who  " port=550 protocol=udp
+add chain="Manage Common Ports" comment="Real Time Streaming Protocol(RTSP)" port=554 protocol=tcp
+add chain="Manage Common Ports" comment="Real Time Streaming Protocol(RTSP)  " port=554 protocol=udp
+add chain="Manage Common Ports" comment="Remotefs,RFS, rfs_server" port=556 protocol=tcp
+add chain="Manage Common Ports" comment="rmonitor, Remote Monitor  " port=560 protocol=udp
+add chain="Manage Common Ports" comment="monitor  " port=561 protocol=udp
+add chain="Manage Common Ports" comment="NNTPprotocol overTLS/SSL(NNTPS)" port=563 protocol=tcp
+add chain="Manage Common Ports" comment="NNTPprotocol overTLS/SSL(NNTPS)  " port=563 protocol=udp
+add chain="Manage Common Ports" comment="e-mail message submission(SMTP)" port=587 protocol=tcp
+add chain="Manage Common Ports" comment="FileMaker6.0 (and later) Web Sharing" port=591 protocol=tcp
+add chain="Manage Common Ports" comment="HTTP RPC Ep Map" port=593 protocol=tcp
+add chain="Manage Common Ports" comment="HTTP RPC Ep Map  " port=593 protocol=udp
+add chain="Manage Common Ports" comment="TUNNEL profile" port=604 protocol=tcp
+add chain="Manage Common Ports" comment="ASF Remote Management and Control Protocol (ASF-RMCP)  " port=623 protocol=udp
+add chain="Manage Common Ports" comment="Internet Printing Protocol(IPP) & Common Unix Printing System(CUPS)" port=631 protocol=tcp
+add chain="Manage Common Ports" comment="Internet Printing Protocol(IPP) & Common Unix Printing System(CUPS)  " port=631 protocol=udp
+add chain="Manage Common Ports" comment="RLZ DBase" port=635 protocol=tcp
+add chain="Manage Common Ports" comment="RLZ DBase  " port=635 protocol=udp
+add chain="Manage Common Ports" comment="Lightweight Directory Access ProtocoloverTLS/SSL(LDAPS)" port=636 protocol=tcp
+add chain="Manage Common Ports" comment="Lightweight Directory Access ProtocoloverTLS/SSL(LDAPS)  " port=636 protocol=udp
+add chain="Manage Common Ports" comment="MSDP,Multicast Source Discovery Protocol" port=639 protocol=tcp
+add chain="Manage Common Ports" comment="MSDP,Multicast Source Discovery Protocol  " port=639 protocol=udp
+add chain="Manage Common Ports" comment="SupportSoft Nexus Remote Command (control/listening)" port=641 protocol=tcp
+add chain="Manage Common Ports" comment="SupportSoft Nexus Remote Command (control/listening)  " port=641 protocol=udp
+add chain="Manage Common Ports" comment="LDP,Label Distribution Protocol" port=646 protocol=tcp
+add chain="Manage Common Ports" comment="LDP,Label Distribution Protocol" port=646 protocol=udp
+add chain="Manage Common Ports" comment="DHCP Failoverprotocol" port=647 protocol=tcp
+add chain="Manage Common Ports" comment="RRP (Registry Registrar Protocol)" port=648 protocol=tcp
+add chain="Manage Common Ports" comment=IEEE-MMS port=651 protocol=tcp
+add chain="Manage Common Ports" comment="IEEE-MMS  " port=651 protocol=udp
+add chain="Manage Common Ports" comment="SupportSoft Nexus Remote Command (data)" port=653 protocol=tcp
+add chain="Manage Common Ports" comment="SupportSoft Nexus Remote Command (data)" port=653 protocol=udp
+add chain="Manage Common Ports" comment="Media Management System (MMS) Media Management Protocol (MMP)" port=654 protocol=tcp
+add chain="Manage Common Ports" comment="IBMRMC (Remote monitoring and Control) protocol" port=657 protocol=tcp
+add chain="Manage Common Ports" comment="IBMRMC (Remote monitoring and Control) protocol " port=657 protocol=udp
+add chain="Manage Common Ports" comment="Mac OS X Serveradministration" port=660 protocol=tcp
+add chain="Manage Common Ports" comment="Doom & airserv-ng" port=666 protocol=tcp
+add chain="Manage Common Ports" comment=Doom port=666 protocol=udp
+add chain="Manage Common Ports" comment="ACAP (Application Configuration Access Protocol)" port=674 protocol=tcp
+add chain="Manage Common Ports" comment="REALM-RUSD (ApplianceWare Server Appliance Management Protocol)" port=688 protocol=tcp
+add chain="Manage Common Ports" comment="REALM-RUSD (ApplianceWare Server Appliance Management Protocol)  " port=688 protocol=udp
+add chain="Manage Common Ports" comment=MSExchangeRouting port=691 protocol=tcp
+add chain="Manage Common Ports" comment="Linux-HAHigh availability Heartbeat" port=694 protocol=tcp
+add chain="Manage Common Ports" comment="Linux-HAHigh availability Heartbeat  " port=694 protocol=udp
+add chain="Manage Common Ports" comment="IEEE-MMS-SSL (IEEEMedia Management System overSSL)" port=695 protocol=tcp
+add chain="Manage Common Ports" comment="OLSR(Optimized Link State Routing)  " port=698 protocol=udp
+add chain="Manage Common Ports" comment="EPP (Extensible Provisioning Protocol),(RFC 5734)" port=700 protocol=tcp
+add chain="Manage Common Ports" comment="LMP (Link Management Protocol (Internet))" port=701 protocol=tcp
+add chain="Manage Common Ports" comment="IRIS(Internet Registry Information Service) overBEEP(Blocks Extensible Exchange Protocol)(RFC 3983)" port=702 protocol=tcp
+add chain="Manage Common Ports" comment="Secure Internet Live Conferencing(SILC)" port=706 protocol=tcp
+add chain="Manage Common Ports" comment="CiscoTag Distribution Protocol" port=711 protocol=tcp
+add chain="Manage Common Ports" comment="Topology Broadcast based on Reverse-Path Forwarding routing protocol(TBRPF) (RFC 3684)" port=712 protocol=tcp
+add chain="Manage Common Ports" comment="Kerberos (protocol)administration" port=749 protocol=tcp
+add chain="Manage Common Ports" comment="Kerberos (protocol)administration  " port=749 protocol=udp
+add chain="Manage Common Ports" comment="kerberos-iv,Kerberosversion IV  " port=750 protocol=udp
+add chain="Manage Common Ports" comment=kerberos_master,Kerberosauthentication port=751 protocol=tcp
+add chain="Manage Common Ports" comment="kerberos_master,Kerberosauthentication  " port=751 protocol=udp
+add chain="Manage Common Ports" comment="passwd_server,KerberosPassword (kpasswd) server  " port=752 protocol=udp
+add chain="Manage Common Ports" comment="Reverse Routing Header (rrh)" port=753 protocol=tcp
+add chain="Manage Common Ports" comment="Reverse Routing Header (rrh)  & userreg_server,Kerberosuserreg server  " port=753 protocol=udp
+add chain="Manage Common Ports" comment="tell send & krb5_prop,Kerberosv5 slave propagation" port=754 protocol=tcp
+add chain="Manage Common Ports" comment="tell send  " port=754 protocol=udp
+add chain="Manage Common Ports" comment="krbupdate [kreg],Kerberosregistration" port=760 protocol=tcp
+add chain="Manage Common Ports" comment="krbupdate [kreg],Kerberosregistration  " port=760 protocol=udp
+add chain="Manage Common Ports" comment="Conserverserial-console management server" port=782 protocol=tcp
+add chain="Manage Common Ports" comment="SpamAssassinspamd daemon" port=783 protocol=tcp
+add chain="Manage Common Ports" comment="mdbe daemon  " port=800 protocol=udp
+add chain="Manage Common Ports" comment="Microsoft Net.TCP Port Sharing Service" port=808 protocol=tcp
+add chain="Manage Common Ports" comment="Certificate Management Protocol" port=829 protocol=tcp
+add chain="Manage Common Ports" comment="Adobe Flash" port=843 protocol=tcp
+add chain="Manage Common Ports" comment="DHCP Failoverprotocol" port=847 protocol=tcp
+add chain="Manage Common Ports" comment="Group Domain Of Interpretation (GDOI) protocol" port=848 protocol=tcp
+add chain="Manage Common Ports" comment="Group Domain Of Interpretation (GDOI) protocol  " port=848 protocol=udp
+add chain="Manage Common Ports" comment="iSCSI(RFC 3720)" port=860 protocol=tcp
+add chain="Manage Common Ports" comment="OWAMP control (RFC 4656)" port=861 protocol=tcp
+add chain="Manage Common Ports" comment="OWAMP control (RFC 4656)  " port=861 protocol=udp
+add chain="Manage Common Ports" comment="TWAMP control (RFC 5357)" port=862 protocol=tcp
+add chain="Manage Common Ports" comment="TWAMP control (RFC 5357)  " port=862 protocol=udp
+add chain="Manage Common Ports" comment="rsyncfile synchronization protocol" port=873 protocol=tcp
+add chain="Manage Common Ports" comment="cddbp,CD DataBase(CDDB) protocol (CDDBP)" port=888 protocol=tcp
+add chain="Manage Common Ports" comment="BrocadeSMI-S RPC" port=897 protocol=tcp
+add chain="Manage Common Ports" comment="BrocadeSMI-S RPC  " port=897 protocol=udp
+add chain="Manage Common Ports" comment="BrocadeSMI-S RPC SSL" port=898 protocol=tcp
+add chain="Manage Common Ports" comment="BrocadeSMI-S RPC SSL  " port=898 protocol=udp
+add chain="Manage Common Ports" comment="SambaWeb Administration Tool (SWAT)" port=901 protocol=tcp
+add chain="Manage Common Ports" comment="VMwareVirtual Infrastructure Client (UDP from server being managed to management console)  " port=901 protocol=udp
+add chain="Manage Common Ports" comment="VMwareServer Console (TCP from management console to server being Managed)" port=902 protocol=tcp
+add chain="Manage Common Ports" comment="VMwareServer Console" port=902 protocol=udp
+add chain="Manage Common Ports" comment="VMwareRemote Console" port=903 protocol=tcp
+add chain="Manage Common Ports" comment="VMwareServer Alternate (if 902 is in use, i.e. SUSE linux)" port=904 protocol=tcp
+add chain="Manage Common Ports" comment="Network Console on Acid(NCA)localttyredirection overOpenSSH" port=911 protocol=tcp
+add chain="Manage Common Ports" comment="Network File System (protocol)Service  " port=944 protocol=udp
+add chain="Manage Common Ports" comment="Domain Name System(DNS) RNDC Service" port=953 protocol=tcp
+add chain="Manage Common Ports" comment="Domain Name System(DNS) RNDC Service  " port=953 protocol=udp
+add chain="Manage Common Ports" comment="Network File System (protocol)overIPv6Service  " port=973 protocol=udp
+add chain="Manage Common Ports" comment="SofaWare TechnologiesRemote HTTPS management for firewall devices running embeddedCheck PointFireWall-1software" port=981 protocol=tcp
+add chain="Manage Common Ports" comment="Microsoft CorporationMicrosoft Windows SBS SharePoint" port=987 protocol=tcp
+add chain="Manage Common Ports" comment="FTPSProtocol (data):FTPoverTLS/SSL" port=989 protocol=tcp
+add chain="Manage Common Ports" comment="FTPSProtocol (data):FTPoverTLS/SSL  " port=989 protocol=udp
+add chain="Manage Common Ports" comment="FTPSProtocol (control):FTPoverTLS/SSL" port=990 protocol=tcp
+add chain="Manage Common Ports" comment="FTPSProtocol (control):FTPoverTLS/SSL  " port=990 protocol=udp
+add chain="Manage Common Ports" comment="NAS (NetnewsAdministration System)" port=991 protocol=tcp
+add chain="Manage Common Ports" comment="NAS (NetnewsAdministration System)  " port=991 protocol=udp
+add chain="Manage Common Ports" comment="TELNETprotocol overTLS/SSL" port=992 protocol=tcp
+add chain="Manage Common Ports" comment="TELNETprotocol overTLS/SSL  " port=992 protocol=udp
+add chain="Manage Common Ports" comment="Internet Message Access ProtocoloverTLS/SSL(IMAPS)" port=993 protocol=tcp
+add chain="Manage Common Ports" comment="Internet Relay ChatoverTLS/SSL(IRCS)" port=994 protocol=tcp
+add chain="Manage Common Ports" comment="Internet Relay ChatoverTLS/SSL(IRCS)  " port=994 protocol=udp
+add chain="Manage Common Ports" comment="Post Office Protocol3 overTLS/SSL(POP3S)" port=995 protocol=tcp
+add chain="Manage Common Ports" comment="ScimoreDBDatabase System" port=999 protocol=tcp
+add chain="Manage Common Ports" comment="Opswareagent (aka cogbot)" port=1002 protocol=tcp
+add chain="Manage Common Ports" comment="ThinLincWeb Administration" port=1010 protocol=tcp
+
+###########################################################################################################################
+#### OpenDNS                                                                                                           ####
+###########################################################################################################################
+
+
+
+
+
+
+add action=accept chain=forward comment="Accept New Connections" connection-state=new disabled=yes
+add action=accept chain=input comment="Accept Related Connections" connection-state=related disabled=yes
+add action=accept chain=forward comment="Accept Related Connections" connection-state=related disabled=yes
+add action=accept chain=input comment="Accept Established Connections" connection-state=established disabled=yes
+add action=accept chain=forward comment="Accept Established Connections" connection-state=established disabled=yes
+
+##########################################################################################################################
+#### Enable this rule in SAFE MODE and test before using##################################################################
+##########################################################################################################################
+
+add action=drop chain=forward comment="Drop all other LAN Traffic" disabled=yes
+add action=drop chain=input comment="Drop all other WAN Traffic" disabled=yes
+
+
+
+/ip service
+set telnet disabled=no port=23
+set ftp disabled=yes port=21
+set www disabled=no port=80
+set ssh disabled=no port=22
+set www-ssl certificate=none disabled=yes port=443
+set api disabled=yes port=8728
+set winbox disabled=no port=8291
+
+
+/ip firewall service-port
+set ftp disabled=no ports=21
+set tftp disabled=no ports=69
+set irc disabled=no ports=6667
+set h323 disabled=no
+set sip disabled=no ports=5060,5061
+set pptp disabled=no
+
+
+
+
+
+/
+
+
+
+RWF MikroTik Firewall 4.0 (Free Version)
